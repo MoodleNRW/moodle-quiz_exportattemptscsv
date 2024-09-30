@@ -75,7 +75,7 @@ class quiz_exportattemptscsv_options extends mod_quiz_attempts_report_options {
         $toform->qtext      = $this->showqtext;
         $toform->resp       = $this->showresponses;
         $toform->right      = $this->showright;
-        $toform->gdpr      = $this->gdpr;
+        //$toform->gdpr      = $this->gdpr;             Does not work?! Commented!
         return $toform;
     }
 

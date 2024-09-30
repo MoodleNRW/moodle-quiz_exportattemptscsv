@@ -32,6 +32,7 @@ require_once($CFG->dirroot . '/mod/quiz/report/attemptsreport.php');
 require_once($CFG->dirroot . '/mod/quiz/report/exportattemptscsv/export_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/exportattemptscsv/export_options.php');
 require_once($CFG->dirroot . '/mod/quiz/report/exportattemptscsv/export_table.php');
+require_once($CFG->libdir . '/csvlib.class.php');
 
 /**
  * Class to implement the report composition.
@@ -162,11 +163,11 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
     protected function export_attempts($quiz, $cm, $attemptids, $allowed) {
         global $DB, $CFG;
 
-        $tmpdir = $CFG->tempdir;
-        $tmpfile = tempnam($tmpdir, "quiz_attempts_id".$quiz->id."_");
-        $tmpcsvfile = $tmpfile . ".csv";
-        rename($tmpfile, $tmpcsvfile);
-        chmod($tmpcsvfile, 0644);
+        $tmpcsvfile = new csv_export_writer ( 'semicolon');
+        // Create filename using timestamp & name of quiz.
+        $quizname = $cm->name;
+        $filename = clean_filename ($quizname .'_'. time());
+        $tmpcsvfile->set_filename ( $filename );
 
         // QUERY suggestions from https://docs.moodle.org/dev/Overview_of_the_Moodle_question_engine#Detailed_data_about_an_attempt.
         if ($DB->get_dbfamily() == 'postgres') {
@@ -177,8 +178,8 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
         } else {
             // The row autonumbering feature for MySQL/MariaDB.
             $sqlsetrownumber = "SET @row_number = 0";
-            $sqlquizattemptsdetails = "SELECT
-                                              (@row_number:=@row_number + 1) AS num,";
+            $sqlquizattemptsdetails = "SELECT (@row_number:=@row_number + 1) AS num,
+                                        quiza.userid,";
         }
 
         if ( $this->options->showgdpr ) {
@@ -214,7 +215,8 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
             $sqlquizattemptsdetails .= "qa.responsesummary,";
         }
 
-        $sqlquizattemptsdetails .= " qasd.name";
+        $sqlquizattemptsdetails .= "qasd.name, 
+                                    qasd.value";
         $sqlquizattemptsdetails .= " FROM {quiz_attempts} quiza
                                      JOIN {question_usages} qu ON qu.id = quiza.uniqueid
                                      JOIN {question_attempts} qa ON qa.questionusageid = qu.id
@@ -223,9 +225,10 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
                                      LEFT JOIN {question_attempt_step_data} qasd ON qasd.attemptstepid = qas.id
                                      WHERE quiza.id = ?
                                      ORDER BY quiza.userid, quiza.attempt, qa.slot, qas.sequencenumber, qasd.name ";
-        $csvfile = fopen($tmpcsvfile, 'w');
 
         $header[] = get_string('seq', 'quiz_exportattemptscsv');
+        $header[] = get_string('userid', 'quiz_exportattemptscsv');
+
         if ( $this->options->showgdpr ) {
             $header[] = get_string('username');
             $header[] = get_string('firstname');
@@ -245,10 +248,10 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
         $header[] = get_string('qasstate', 'quiz_exportattemptscsv');
         $header[] = get_string('qasfraction', 'quiz_exportattemptscsv');
         $header[] = get_string('qastimecreated', 'quiz_exportattemptscsv');
+
         if ( $this->options->showgdpr ) {
             $header[] = get_string('qasuserid', 'quiz_exportattemptscsv');
         }
-
         if ( $this->options->showright ) {
             $header[] = get_string('qarightanswer', 'quiz_exportattemptscsv');
         }
@@ -260,8 +263,10 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
         }
 
         $header[] = get_string('qasdname', 'quiz_exportattemptscsv');
+        $header[] = get_string('qasdvalue', 'quiz_exportattemptscsv');
 
-        fputcsv ($csvfile, array_map(fn($v) => $v.' ', $header));
+        // Save the header to the csv file (defines row names).
+        $tmpcsvfile->add_data($header);
 
         // For MySQL/MariaDB set first rownumber to zero.
         if ($sqlsetrownumber != "") {
@@ -274,17 +279,18 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
 
             foreach ($quizattemptdetailsrs as $quizattemptdetails) {
                 // Convert UNIXTIME to readable format.
-                $quizattemptdetails->timecreated = userdate($quizattemptdetails->timecreated);
+                $quizattemptdetails->timecreated = date("F j, Y, g:i:s", $quizattemptdetails->timecreated);
+                // Remove Linebreaks
+                $quizattemptdetails->rightanswer = str_replace(array("\r", "\n"), '', $quizattemptdetails->rightanswer);
+                $quizattemptdetails->responsesummary = str_replace(array("\r", "\n"), '', $quizattemptdetails->responsesummary);
                 // Save record to CSV file.
-                fputcsv ($csvfile, array_map(fn($v) => $v.' ', json_decode(json_encode($quizattemptdetails), true)) );
+                $tmpcsvfile->add_data( (array) $quizattemptdetails);
             }
         }
 
         header("Content-Type: text/csv; charset=UTF-8");
-        header("Content-Disposition: attachment; filename=\"quiz_exportattempts_".$quiz->id.".csv\"");
-        readfile($tmpcsvfile);
-
-        unlink($tmpcsvfile);
+        header("Content-Disposition: attachment; filename=\"quiz_exportattempts_" .$filename. "-" .$quiz->id.".csv\"");
+        $tmpcsvfile->download_file();
         exit;
     }
 }
