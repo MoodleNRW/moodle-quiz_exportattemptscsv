@@ -127,6 +127,7 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
             // Print the table.
             $table->out($this->options->pagesize, true);
         }
+
     }
 
     /**
@@ -185,7 +186,9 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
         if ( $this->options->showgdpr ) {
             $sqlquizattemptsdetails .= " usertable.username,
                                          usertable.firstname,
-                                         usertable.lastname,";
+                                         usertable.lastname,
+                                         usertable.email,
+                                         usertable.idnumber,";
         }
         $sqlquizattemptsdetails .= " quiza.quiz,
                                      quiza.id AS quizattemptid,
@@ -233,6 +236,8 @@ class quiz_exportattemptscsv_report extends quiz_attempts_report {
             $header[] = get_string('username');
             $header[] = get_string('firstname');
             $header[] = get_string('lastname');
+            $header[] = get_string('email');
+            $header[] = get_string('idnumber');
         }
         $header[] = get_string('quizid', 'quiz_exportattemptscsv');
         $header[] = get_string('quizattemptid', 'quiz_exportattemptscsv');

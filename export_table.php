@@ -75,7 +75,7 @@ class quiz_exportattemptscsv_table extends quiz_attempts_report_table {
      */
     protected function submit_buttons() {
         global $PAGE;
-        echo '<input type="submit" id="exportattemptsbutton" name="export" value="' .
+        echo '<input class="btn btn-primary my-3" type="submit" id="exportattemptsbutton" name="export" value="' .
             get_string('exportselected', 'quiz_exportattemptscsv') . '"/>';
         $PAGE->requires->event_handler('#exportattemptsbutton', 'click', 'M.util.show_confirm_dialog',
             ['message' => get_string('exportattemptcheck', 'quiz_exportattemptscsv')]);
